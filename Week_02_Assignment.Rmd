@@ -12,7 +12,11 @@ knitr::opts_chunk$set(echo = TRUE)
 1.  Install the `nycflights13` package and load it into the namespace of your R session. Also, load the `tidyverse` package into the namespace of your R session. Attach the `airlines`, `airports`, `flights`, `weather`, and `planes` datasets
 
 ```{r}
-
+nycflights13::airlines
+nycflights13::airports
+nycflights13::flights
+nycflights13::weather
+nycflights13::planes
 ```
 
 2.  We'll begin by exploring the `flights` dataset. Determine the following information about the dataset.
@@ -22,8 +26,13 @@ knitr::opts_chunk$set(echo = TRUE)
 -   Summary Statistics for each column
 
 ```{r}
-
+str(flights)
+summary(flights)
 ```
+Structure is a data frame.
+Dimensions are 337,776 rows and 19 columns.
+Summary stats are drawn for each column with the summary function.
+
 
 3.  We'll be concentrating on a few key fields. Use the vignette about the `flights` table to look up the definitions of the following fields:
 
@@ -36,36 +45,94 @@ Copy those definitions as a response here.
 ```{r}
 
 ```
+dep_delay, arr_delay
+Departure and arrival delays, in minutes. Negative times represent early departures/arrivals.
+
+hour, minute
+Time of scheduled departure broken into hour and minutes.
+
+origin
+Origin. See airports for additional metadata.
+(definition paired with dest for destination airport)
+
 
 4.  Create a bar chart that demonstrates which origin occurs most frequently. Write a short interpretation of the bar graph.
 
 ```{r}
-
+ggplot(data = flights) +
+  geom_bar(aes(x = origin))
 ```
+The plot shows the count of flights originating at each of 3 NYC regional airports: Newark (EWR), JFK, and LaGuardia (LGA).
+The most flights originate from Newark.
+
 
 5.  What is the distribution of flight departure times by hour? Describe the plot that you created.
 
     *Hint: Consider different geometries when creating the graph. Histograms are usually a good place to start when considering distributions, but bar plots can be helpful as well.*
 
 ```{r}
+ggplot(data = flights) +
+  geom_bar(aes(x = hour))
 
+# unique(flights$hour)
+# ggplot(data = flights) +
+#   geom_histogram(aes(x = hour),
+#                 bins = 23)
 ```
+This plot shows the count of flights departing at each hour of the day. The bar plot was chosen because the histogram plot required some finessing to get the correct number of bins (operation was not around the clock). The bar plot shows space between the bars making visual interpretation easier.
+
+Most flights depart between 6 AM and 9 PM. Very few flights depart between 5-6 AM and 10-11 PM. No flights were recorded originating midnight and 5 AM. The frequency peaks around 6-8 AM and 2-7 PM with dips between 10 AM-noon and after 8 PM.
+
 
 6.  How does the distribution change when we consider the origin of the flight? Build upon your response in question 5. Describe the differences.
 
     *Hint: Experiment with faceting to find a view that is most helpful.*
 
 ```{r}
-
+ggplot(data = flights) +
+  geom_bar(aes(x = hour)) +
+  facet_grid(origin ~ .)
 ```
+The time range of departing flights is similar for all airports, though LGA's last flights depart an hour earlier than EWR and JFK. All airports have very few flights between 5-6 AM and fewer flights after 9 PM.  
+At LGA and EWR, the frequency of flights through the day is fairly constant. The bulk of the contour observed in the total flight frequency by hour is due to fluctuations at JFK. 
 
 7.  How does departure hour interact with departure delay? Utilize a [boxplot](https://towardsdatascience.com/understanding-boxplots-5e2df7bcbd51). Interpret the graph.
 
     *Hint: It can be helpful to adjust the portion of the graph that you observe in order to find patterns. Consider using `coord_cartesian` to help with this.*
 
 ```{r}
-
+ggplot( data = flights,
+        aes(x = dep_delay,
+                y = hour    # call y axis variable
+          )
+        ) +
+  
+  geom_boxplot(
+              aes(group = hour),   # set hour as a group
+               na.rm = TRUE        # stop error for unable to plot 8000+ null values
+              ) +
+  
+  coord_cartesian(
+    xlim = c(-50, 100),     # trim x-axis from original
+    ylim = NULL,            # show all Y vals
+    expand = TRUE,
+    default = FALSE,
+    clip = "on"
+    )
 ```
+
+First ... Generation and order of the y-axis. Two options to differentiate delay by hour... group argument or coerce the hour to be a non-numeric/character data type. First attempt used the latter, which was ugly and produced data in first-character order rather than sequence. Eventually I figured out what was missing in my syntax following the examples in text Sec. 7.5.3. 
+
+Second ... truncation of axes. I need all Y values (departure hours), but want to truncate the x-axis to exclude the many outliers spread on a long tail of flight delays. Most delays are < 500 min, but the maximum is ~1300 min. The central quartiles of difference from scheduled departure time, however, are clustered around -10 to +35 min. The `coord_cartesian` routine was used to truncate the x-axis to focus on this region. Limits were expanded to show all the main, non-outlier data: the 4 quartiles of primary box and whisker plots by hour, from -50 to 100 min.
+
+Third ... Interpretation of the data. Early in the day, almost all flights are close to on time, even with increasing flight volume from 6-9 AM. Starting at 10 AM, delays start to accrue widening the departure time window from what is scheduled. The range of departure times increases with later flights through the day until a maximum is reached for flights departing 9-10 PM. From 10 PM onward, delays decrease but may still be up to 1-1.5 hours. In all cases, the range of departure differentials skews toward delay (+ value) rather than early departure (- values). The median departure time is steady from 5 -10 AM, gets increasingly later from noon to 9 PM, then later decreases to similar values as early afternoon.  
+
+The long tail of outlier data indicate that lengthy delays are possible, with the longest in the data set being 21.7 hours (1301 min, per the query below). 
+
+```{r}
+max(flights$dep_delay, na.rm = TRUE)
+```
+
 
 8.  Create your own question and answer it by using a graph. You may use any of the datasets loaded in the `nycflights13` package.
 
@@ -73,4 +140,99 @@ Copy those definitions as a response here.
 -   Create a graph that assists in answering the question.
 -   Write a short interpretation of the graph in order to answer your question.
 
+
+Q. Are departure delays associated with arrival delays? Does this pattern vary by carrier or origin?
+```{r}
+ggplot( data = flights,
+        aes(x = dep_delay,
+            y = arr_delay,  
+            color = origin
+          )
+        ) +
+geom_point(na.rm = TRUE) +
+  facet_wrap(vars(carrier))
+  
+```
+What it means...
+Departure delays are associated with arrival delays in approx. 1:1 ratio (eyeball analysis noting straight lines with equal values on both axes; axes appear unequal because of squashed form factor). There does not seem to be significant variation by carrier. Separating data by carrier and coloring by origin airport shows some carriers operating at all regional airports and many operating only at 1 or 2. 
+
+A wider range of delays is seen for certain carriers, particularly AA, DL, and MQ. However, as noted in Q7 this is probably outlier behavior. A boxplot will show us more clearly the typical variation among carriers by location.
+
+```{r}
+ggplot( data = flights,
+        aes(x = dep_delay,
+                y = origin    
+          )
+        ) +
+  
+  geom_boxplot(na.rm = TRUE 
+               ) +
+  
+  coord_cartesian(
+    xlim = c(-30, 75),     # trim x-axis from original
+    ylim = NULL,            # show all Y vals
+    expand = TRUE,
+    default = FALSE,
+    clip = "on"
+    ) +
+  
+  facet_wrap(vars(carrier))
+```
+Interestingly, while AA has the largest range of delays, the typical departure is very close to on time -- the stats are very tight for all 4 quartiles at all 3 airports. The same is true for DL. MQ shows a broader range of departure delays, and longer typical delays at EWR than at JFK with the shortest delays at LGA.
+
+Also interesting is that different carriers show different trends for delays at the same airports. For example 9E typically has their longest delays at JFK while EV has their shortest ones there. How do they compare to each other at the same site? Hard to tell on differnt plots. Replot vs carrier with grid by origin location.
+
+```{r}
+ggplot( data = flights,
+        aes(x = dep_delay,
+                y = carrier   
+          )
+        ) +
+  
+  geom_boxplot(na.rm = TRUE 
+               ) +
+  
+  coord_cartesian(
+    xlim = c(-30, 75),     # trim x-axis from original
+    ylim = NULL,            # show all Y vals
+    expand = TRUE,
+    default = FALSE,
+    clip = "on"
+    ) +
+  
+  facet_grid( ~ origin)
+```
+At JFK, EV is the second most-delayed carrier with 9E having the longest delays. However, this trend is not so for other locations. EV is the most-delayed carrier at EWR and approximately tied with YV for latest departures at LGA, but 9E is among the most on-time at EWR and has middling delays at LGA, comparable to UA.
+
+Check... Do the arrival delay plots look the same?
+```{r}
+ggplot( data = flights,
+        aes(x = arr_delay,
+                y = carrier    # call y axis variable
+          )
+        ) +
+  
+  geom_boxplot(na.rm = TRUE 
+               ) +
+  
+  coord_cartesian(
+    xlim = c(-50, 100),     # trim x-axis from original
+    ylim = NULL,            # show all Y vals
+    expand = TRUE,
+    default = FALSE,
+    clip = "on"
+    ) +
+  
+  facet_grid( ~ origin)
+```
+The spread of arrival delay data is wider than departure delays, and shows slightly more pronounced differences in median delay than the departure data. The overall trends seem to hold. Early arrival seems far more likely than early departure. 
+
+
 9.  You have now built a variety of graphics using the `ggplot2` system. Describe some of the advantages to the "grammar of graphics" approach to creating graphs.
+
+Some advantages of a grammar of graphics approach are...
+- enormous flexibility of layout and formatting
+- ability to lift & shift code to duplicate formats with new data sets
+- ability to insert and comment-out levels of detail in a visualization, especially helpful for exploratory analysis and progressively building plots with different highlighted features
+- ability to work at multiple levels of detail within the plot, e.g. color each subset separately but indicate an overall trend
+- syntax and placement produce consistent output, once learned
